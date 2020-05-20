@@ -1,6 +1,7 @@
 """A `dowel.logger.LogOutput` for CSV files."""
 import csv
 import warnings
+import pandas as pd
 
 from dowel import TabularInput
 from dowel.simple_outputs import FileOutput
@@ -19,6 +20,7 @@ class CsvOutput(FileOutput):
         self._fieldnames = None
         self._warned_once = set()
         self._disable_warnings = False
+        self._df = pd.DataFrame()  # Pandas DataFrame, used to update header
 
     @property
     def types_accepted(self):
@@ -30,26 +32,41 @@ class CsvOutput(FileOutput):
         if isinstance(data, TabularInput):
             to_csv = data.as_primitive_dict
 
-            if not to_csv.keys() and not self._writer:
+            # if not to_csv.keys() and not self._writer:
+            #     return
+
+            # if not self._writer:
+            #     self._fieldnames = set(to_csv.keys())
+            #     self._writer = csv.DictWriter(
+            #         self._log_file,
+            #         fieldnames=self._fieldnames,
+            #         extrasaction='ignore')
+            #     self._writer.writeheader()
+
+            # if to_csv.keys() != self._fieldnames:
+            #     self._warn('Inconsistent TabularInput keys detected. '
+            #                'CsvOutput keys: {}. '
+            #                'TabularInput keys: {}. '
+            #                'Did you change key sets after your first '
+            #                'logger.log(TabularInput)?'.format(
+            #                    set(self._fieldnames), set(to_csv.keys())))
+
+            # self._writer.writerow(to_csv)
+
+            if not to_csv.keys():
                 return
 
-            if not self._writer:
-                self._fieldnames = set(to_csv.keys())
-                self._writer = csv.DictWriter(
-                    self._log_file,
-                    fieldnames=self._fieldnames,
-                    extrasaction='ignore')
-                self._writer.writeheader()
+            # Add new data, Pandas will create new columns automatically
+            self._df = self._df.append(to_csv, ignore_index=True)
+            temp = pd.DataFrame().append(to_csv, ignore_index=True)
 
-            if to_csv.keys() != self._fieldnames:
-                self._warn('Inconsistent TabularInput keys detected. '
-                           'CsvOutput keys: {}. '
-                           'TabularInput keys: {}. '
-                           'Did you change key sets after your first '
-                           'logger.log(TabularInput)?'.format(
-                               set(self._fieldnames), set(to_csv.keys())))
-
-            self._writer.writerow(to_csv)
+            if self._fieldnames != set(to_csv.keys()):  # need to rewrite all
+                self._log_file.seek(0, 0)  # reset the pointer
+                self._df.to_csv(self._log_file, index=False)  # write data
+                self._fieldnames = set(to_csv.keys())  # renew cols
+            else:  # just append the new row
+                temp.to_csv(
+                    self._log_file, mode='a', header=False, index=False)
 
             for k in to_csv.keys():
                 data.mark(k)
