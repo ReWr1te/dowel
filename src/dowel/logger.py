@@ -136,6 +136,7 @@ import contextlib
 import warnings
 
 from dowel.utils import colorize
+from dowel.tabular_input import TabularInput
 
 
 class LogOutput(abc.ABC):
@@ -206,6 +207,10 @@ class Logger:
             if isinstance(data, output.types_accepted):
                 output.record(data, prefix=self._prefix_str)
                 at_least_one_logged = True
+
+        # clear dict to prevent reusing stale data
+        if isinstance(data, TabularInput):
+            data.clear()
 
         if not at_least_one_logged:
             warning = (

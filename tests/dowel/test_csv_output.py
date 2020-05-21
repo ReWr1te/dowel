@@ -19,8 +19,10 @@ class TestCsvOutput:
         self.log_file.close()
 
     def test_record(self):
-        foo = 1
-        bar = 10
+        """ Test data changed to float. """
+
+        foo = 1.0
+        bar = 10.0
         self.tabular.record('foo', foo)
         self.tabular.record('bar', bar)
         self.csv_output.record(self.tabular)
@@ -36,24 +38,20 @@ class TestCsvOutput:
         self.assert_csv_matches(correct)
 
     def test_record_inconsistent(self):
-        foo = 1
-        bar = 10
+        """ No more warnings needed, test data changed to float. """
+
+        foo = 1.0
+        bar = 10.0
         self.tabular.record('foo', foo)
         self.csv_output.record(self.tabular)
         self.tabular.record('foo', foo * 2)
         self.tabular.record('bar', bar * 2)
-
-        with pytest.warns(CsvOutputWarning):
-            self.csv_output.record(self.tabular)
-
-        # this should not produce a warning, because we only warn once
         self.csv_output.record(self.tabular)
-
         self.csv_output.dump()
 
         correct = [
-            {'foo': str(foo)},
-            {'foo': str(foo * 2)},
+            {'foo': str(foo), 'bar': ''},
+            {'foo': str(foo * 2), 'bar': str(bar * 2)},
         ]  # yapf: disable
         self.assert_csv_matches(correct)
 
@@ -92,4 +90,4 @@ class TestCsvOutput:
 
             for correct_row in correct:
                 row = next(reader)
-                assert row == correct_row
+                assert dict(row) == correct_row  # change ordered dict to dict

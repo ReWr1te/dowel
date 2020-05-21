@@ -1,6 +1,7 @@
 """A `dowel.logger.LogOutput` for CSV files."""
 import csv
 import warnings
+import pandas as pd
 
 from dowel import TabularInput
 from dowel.simple_outputs import FileOutput
@@ -16,9 +17,10 @@ class CsvOutput(FileOutput):
     def __init__(self, file_name):
         super().__init__(file_name)
         self._writer = None
-        self._fieldnames = None
+        self._fieldnames = set()
         self._warned_once = set()
         self._disable_warnings = False
+        self._df = pd.DataFrame()  # This df stores cumulative data.
 
     @property
     def types_accepted(self):
@@ -30,26 +32,23 @@ class CsvOutput(FileOutput):
         if isinstance(data, TabularInput):
             to_csv = data.as_primitive_dict
 
-            if not to_csv.keys() and not self._writer:
+            if not to_csv.keys():
                 return
 
-            if not self._writer:
-                self._fieldnames = set(to_csv.keys())
-                self._writer = csv.DictWriter(
-                    self._log_file,
-                    fieldnames=self._fieldnames,
-                    extrasaction='ignore')
-                self._writer.writeheader()
+            # Add new data, Pandas will create new columns automatically.
+            # Using ignore_index to prevent creating an index column.
+            self._df = self._df.append(to_csv, ignore_index=True)
+            temp = pd.DataFrame().append(to_csv, ignore_index=True)
 
-            if to_csv.keys() != self._fieldnames:
-                self._warn('Inconsistent TabularInput keys detected. '
-                           'CsvOutput keys: {}. '
-                           'TabularInput keys: {}. '
-                           'Did you change key sets after your first '
-                           'logger.log(TabularInput)?'.format(
-                               set(self._fieldnames), set(to_csv.keys())))
-
-            self._writer.writerow(to_csv)
+            # In this case, we need to rewrite all data to prevent
+            #   the inconsistency.
+            if self._fieldnames != set(to_csv.keys()):
+                self._log_file.seek(0, 0)  # Reset the pointer
+                self._df.to_csv(self._log_file, index=False)  # Write all.
+                self._fieldnames = set(to_csv.keys())  # Renew cols.
+            else:  # Just append the new row.
+                temp.to_csv(
+                    self._log_file, mode='a', header=False, index=False)
 
             for k in to_csv.keys():
                 data.mark(k)
